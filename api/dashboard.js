@@ -23,9 +23,23 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "user",
-            content:
-              "Analiza estas noticias del Perú. Devuelve JSON con lista de noticias con tono (pos, neg, neu):\n" +
-              titulos.join("\n")
+content: `
+Analiza estas noticias políticas del Perú.
+
+Devuelve SOLO JSON con esta estructura:
+
+{
+  "crisis": true o false,
+  "riesgo": "alto, medio o bajo",
+  "tema": "tema principal",
+  "noticias": [
+    { "t": "texto noticia", "s": "neg, pos o neu" }
+  ]
+}
+
+Noticias:
+${titulos.join("\n")}
+`
           }
         ]
       })
