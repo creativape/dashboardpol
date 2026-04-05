@@ -443,7 +443,13 @@ function refreshAll(){
     const data = await res.json();
 
     // AQUÍ reemplazas noticias
-    const texto = data.content[0].text;
+    let texto = "";
+
+if (data.fallback) {
+  texto = data.noticias.join("\n");
+} else {
+  texto = data.content[0].text;
+}
 
     // ejemplo simple (luego lo mejoras)
     NOTICIAS_BASE = texto.split('\n').map(t => ({
