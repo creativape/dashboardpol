@@ -446,17 +446,17 @@ async function refreshAll(){
       throw new Error("Formato inválido");
     }
 
-    NOTICIAS_BASE = noticias.map(function(t){
-      return {
-        t: t,
-        f: "Sistema",
-        h: "ahora",
-        s: "neu",
-        r: t,
-        tags: ["Actualizado"],
-        nuevo: true
-      };
-    });
+    NOTICIAS_BASE = data.noticias.map(function(n){
+  return {
+    t: n.t || n,          // título
+    f: "Fuente externa",  // fuente
+    h: "ahora",           // tiempo
+    s: n.s || "neu",      // sentimiento
+    r: n.t || n,          // resumen
+    tags: ["Tiempo real"],
+    nuevo: true
+  };
+});
 
     renderNews();
 
