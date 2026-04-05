@@ -47,18 +47,24 @@ ${titulos.join("\n")}
 
     const aiData = await aiRes.json();
 
-    let noticias = [];
+  let resultado;
 
-    try {
-      noticias = JSON.parse(aiData.content[0].text);
-    } catch {
-      noticias = titulos.map(t => ({
-        t,
-        s: "neu"
-      }));
-    }
-
-    res.status(200).json({ noticias });
+try {
+  resultado = JSON.parse(aiData.content[0].text);
+} catch {
+  resultado = {
+    crisis: false,
+    riesgo: "bajo",
+    tema: "sin datos",
+    noticias: titulos.map(t => ({ t, s: "neu" }))
+  };
+}
+    res.status(200).json({
+  noticias: resultado.noticias,
+  crisis: resultado.crisis,
+  riesgo: resultado.riesgo,
+  tema: resultado.tema
+});
 
   } catch (error) {
     res.status(200).json({
