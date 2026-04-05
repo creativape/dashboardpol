@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor Electoral — López Aliaga 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#111827;font-size:14px}
+.topbar{background:#1a1a2e;color:white;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.tb-l{display:flex;align-items:center;gap:10px}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;transition:background .3s}
+.dot.off{background:#ef4444}
+.dot.syncing{animation:blink 0.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+.tb-title{font-size:14px;font-weight:600}
+.tb-sub{font-size:11px;opacity:.55;margin-top:1px}
+.tb-clock{font-size:12px;opacity:.7;font-family:monospace;min-width:70px;text-align:right}
+.update-bar{background:#0f172a;padding:8px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.update-bar label{font-size:12px;color:#94a3b8}
+.update-bar select{background:#1e293b;color:white;border:1px solid #334155;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-refresh{background:#2563eb;color:white;border:none;border-radius:6px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:500;display:flex;align-items:center;gap:6px;transition:background .15s}
+.btn-refresh:hover{background:#1d4ed8}
+.btn-refresh:disabled{background:#374151;cursor:not-allowed;opacity:.7}
+.last-update{font-size:11px;color:#64748b;margin-left:auto}
+.progress-bar{height:2px;background:#1e293b;overflow:hidden}
+.progress-fill{height:100%;background:#2563eb;width:0%;transition:width .3s linear}
+.nav{background:white;border-bottom:1px solid #e5e7eb;display:flex;padding:0 20px;overflow-x:auto;position:sticky;top:88px;z-index:99}
+.nb{background:none;border:none;padding:11px 14px;font-size:13px;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;font-family:inherit;transition:all .15s}
+.nb.on{color:#1a1a2e;border-bottom-color:#2563eb;font-weight:600}
+.nb:hover:not(.on){color:#1a1a2e;background:#f9fafb}
+.cnt{padding:18px 20px 32px;max-width:1100px;margin:0 auto}
+.sec{display:none}.sec.on{display:block}
+.mg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+@media(max-width:700px){.mg{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr!important}}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mc{background:white;border-radius:10px;padding:14px 16px;border:1px solid #e5e7eb;transition:border-color .3s}
+.mc.updated{border-color:#2563eb;animation:flash .8s ease}
+@keyframes flash{0%{background:#eff6ff}100%{background:white}}
+.ml{font-size:11px;color:#9ca3af;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.mv{font-size:22px;font-weight:700;color:#111827}
+.md{font-size:11px;margin-top:3px}
+.up{color:#15803d}.dn{color:#dc2626}.neu{color:#6b7280}
+.card{background:white;border:1px solid #e5e7eb;border-radius:12px;padding:15px 18px;margin-bottom:14px}
+.ct{font-size:13px;font-weight:600;color:#111827;margin-bottom:13px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cw{position:relative;width:100%}
+.tag{font-size:11px;padding:2px 8px;border-radius:10px;display:inline-block;font-weight:500}
+.tg{background:#dcfce7;color:#15803d}.tn{background:#f1f5f9;color:#475569}.tr{background:#fee2e2;color:#dc2626}
+.badge-alto{background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 9px;border-radius:10px;font-weight:600}
+.badge-medio{background:#fef9c3;color:#854d0e;font-size:11px;padding:2px 9px;border-radius:10px;font-weight:600}
+.badge-bajo{background:#dcfce7;color:#14532d;font-size:11px;padding:2px 9px;border-radius:10px;font-weight:600}
+.ni{padding:12px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:11px;animation:slideIn .35s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.ni:last-child{border-bottom:none;padding-bottom:0}
+.ni-bar{width:4px;border-radius:2px;flex-shrink:0;margin-top:3px}
+.bpos{background:#15803d}.bneg{background:#dc2626}.bneu{background:#94a3b8}
+.ni-t{font-size:13px;font-weight:600;color:#111827;margin-bottom:2px;line-height:1.35}
+.ni-m{font-size:11px;color:#9ca3af;margin-bottom:4px}
+.ni-b{font-size:12px;color:#6b7280;line-height:1.55}
+.ni-tags{margin-top:6px;display:flex;gap:5px;flex-wrap:wrap}
+.ni-new{background:#eff6ff;border-radius:6px;padding:1px 6px;font-size:10px;color:#2563eb;font-weight:600;margin-left:6px}
+.fbt{background:#f9fafb;border:1px solid #e5e7eb;border-radius:20px;padding:4px 13px;font-size:12px;cursor:pointer;color:#6b7280;font-family:inherit;transition:all .15s}
+.fbt.on{background:#1a1a2e;color:white;border-color:#1a1a2e}
+.frow{display:flex;gap:7px;margin-bottom:13px;flex-wrap:wrap}
+.sbar{height:10px;border-radius:5px;overflow:hidden;display:flex;margin:8px 0 4px}
+.sbp{background:#15803d;transition:width .8s ease}
+.sbn{background:#94a3b8;transition:width .8s ease}
+.sbg{background:#dc2626;transition:width .8s ease}
+.trow{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f3f4f6}
+.trow:last-child{border-bottom:none}
+.tn2{font-size:13px;color:#374151;flex:1}
+.tbw{width:120px;background:#f1f5f9;border-radius:4px;height:7px;overflow:hidden;flex-shrink:0}
+.tbf{height:100%;border-radius:4px;transition:width .9s ease}
+.tpct{font-size:11px;color:#6b7280;width:32px;text-align:right;font-weight:600;flex-shrink:0}
+.crow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6}
+.crow:last-child{border-bottom:none}
+.ci{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.cn{font-size:13px;font-weight:500;color:#111827;flex:1}
+.cpb{width:90px;background:#f1f5f9;border-radius:3px;height:7px;overflow:hidden;flex-shrink:0}
+.cpf{height:100%;border-radius:3px;transition:width 1s ease}
+.cv2{font-size:13px;font-weight:700;width:44px;text-align:right;flex-shrink:0}
+.abox{background:#f9fafb;border-left:3px solid #2563eb;border-radius:0 8px 8px 0;padding:12px 16px;font-size:13px;color:#374151;line-height:1.65;margin-bottom:12px}
+.toast{position:fixed;bottom:20px;right:20px;background:#111827;color:white;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:200;max-width:320px}
+.toast.show{opacity:1}
+.src-badge{display:flex;align-items:center;gap:5px;font-size:11px;color:#9ca3af}
+.src-dot{width:6px;height:6px;border-radius:50%;background:#22c55e}
+.countdown{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cd-label{font-size:12px;color:#1e40af}
+.cd-val{font-size:18px;font-weight:700;color:#1e3a8a}
+.alerta-banner{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#991b1b;display:none;font-weight:500}
+.alerta-banner.show{display:flex;align-items:center;gap:8px}
+.error-banner{background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#713f12;display:none;line-height:1.5}
+.error-banner.show{display:block}
+.skeleton{background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px;height:14px;margin-bottom:10px}
+.skeleton.short{width:55%}.skeleton.medium{width:80%}.skeleton.tall{height:56px}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-l">
+    <div class="dot" id="status-dot"></div>
+    <div>
+      <div class="tb-title">Monitor Electoral · Rafael López Aliaga · Perú 2026</div>
+      <div class="tb-sub" id="last-src">Conectando con fuentes en vivo…</div>
+    </div>
+  </div>
+  <div class="tb-clock" id="clock">--:--:--</div>
+</div>
+
+<div class="update-bar">
+  <label>Auto-actualizar:</label>
+  <select id="auto-interval">
+    <option value="0">Manual</option>
+    <option value="60">Cada 1 min</option>
+    <option value="300" selected>Cada 5 min</option>
+    <option value="600">Cada 10 min</option>
+    <option value="1800">Cada 30 min</option>
+  </select>
+  <button class="btn-refresh" id="btn-refresh">
+    <span id="btn-icon">↻</span> Actualizar ahora
+  </button>
+  <div class="last-update" id="last-update-txt">Última actualización: —</div>
+</div>
+<div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+
+<div class="nav">
+  <button class="nb on" id="nav-noticias">Noticias</button>
+  <button class="nb" id="nav-sentimiento">Sentimiento</button>
+  <button class="nb" id="nav-temas">Temas clave</button>
+  <button class="nb" id="nav-encuestas">Encuestas</button>
+  <button class="nb" id="nav-analisis">Análisis</button>
+</div>
+
+<div class="cnt">
+
+<!-- NOTICIAS -->
+<div class="sec on" id="sec-noticias">
+  <div class="countdown">
+    <div class="cd-label">Días para las elecciones — 12 de abril 2026</div>
+    <div class="cd-val" id="dias-counter">—</div>
+  </div>
+  <div class="alerta-banner" id="alerta-banner">🚨 CRISIS: cobertura mayoritariamente negativa</div>
+  <div class="error-banner" id="error-banner"></div>
+  <div class="mg">
+    <div class="mc" id="mc-total">
+      <div class="ml">Noticias monitoreadas</div>
+      <div class="mv" id="m-total">—</div>
+      <div class="md neu">GNews en vivo</div>
+    </div>
+    <div class="mc" id="mc-neg">
+      <div class="ml">Tono negativo</div>
+      <div class="mv dn" id="m-neg">—</div>
+      <div class="md dn" id="m-neg-pct">análisis IA</div>
+    </div>
+    <div class="mc" id="mc-pos">
+      <div class="ml">Tono positivo</div>
+      <div class="mv up" id="m-pos">—</div>
+      <div class="md up" id="m-pos-pct">análisis IA</div>
+    </div>
+    <div class="mc" id="mc-riesgo">
+      <div class="ml">Nivel de riesgo</div>
+      <div id="m-riesgo" style="margin-top:4px">—</div>
+      <div class="md neu" id="m-tema" style="margin-top:6px">calculando…</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">
+      <span>Noticias en tiempo real — GNews + Claude IA</span>
+      <span class="src-badge"><span class="src-dot"></span>En vivo</span>
+    </div>
+    <div class="frow" id="filter-row">
+      <button class="fbt on" data-filter="todos">Todos</button>
+      <button class="fbt" data-filter="neg">Negativos</button>
+      <button class="fbt" data-filter="pos">Positivos</button>
+      <button class="fbt" data-filter="neu">Neutros</button>
+    </div>
+    <div id="news-list">
+      <div class="skeleton medium"></div>
+      <div class="skeleton tall"></div>
+      <div class="skeleton short"></div>
+      <div class="skeleton medium"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SENTIMIENTO -->
+<div class="sec" id="sec-sentimiento">
+  <div class="card">
+    <div class="ct">
+      Distribución de sentimiento mediático
+      <span id="sent-riesgo-badge"></span>
+    </div>
+    <div style="display:flex;gap:10px;font-size:13px;flex-wrap:wrap">
+      <span style="color:#15803d;font-weight:700" id="sp-txt">— positivo</span>
+      <span style="color:#cbd5e1">·</span>
+      <span style="color:#9ca3af" id="sn-txt">— neutral</span>
+      <span style="color:#cbd5e1">·</span>
+      <span style="color:#dc2626;font-weight:700" id="sg-txt">— negativo</span>
+    </div>
+    <div class="sbar" style="margin-top:10px">
+      <div class="sbp" id="sbar-p" style="width:0%"></div>
+      <div class="sbn" id="sbar-n" style="width:0%"></div>
+      <div class="sbg" id="sbar-g" style="width:0%"></div>
+    </div>
+    <div class="abox" style="margin-top:14px" id="sent-analysis">Cargando análisis…</div>
+  </div>
+  <div class="two">
+    <div class="card">
+      <div class="ct">Temas que generan rechazo</div>
+      <div id="sent-rechazo-list"><div class="skeleton medium"></div><div class="skeleton short"></div></div>
+    </div>
+    <div class="card">
+      <div class="ct">Temas que generan apoyo</div>
+      <div id="sent-apoyo-list"><div class="skeleton medium"></div><div class="skeleton short"></div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Evolución de intención de voto — IEP / CPI / Ipsos</div>
+    <div class="cw" style="height:220px"><canvas id="cv-evo"></canvas></div>
+  </div>
+</div>
+
+<!-- TEMAS -->
+<div class="sec" id="sec-temas">
+  <div class="card">
+    <div class="ct">Temas más mencionados — <span id="temas-fecha">cargando…</span></div>
+    <div id="temas-list">
+      <div class="skeleton medium"></div><div class="skeleton short"></div>
+      <div class="skeleton medium"></div><div class="skeleton short"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Distribución de tono por tema</div>
+    <div class="cw" style="height:240px"><canvas id="cv-temas"></canvas></div>
+  </div>
+</div>
+
+<!-- ENCUESTAS -->
+<div class="sec" id="sec-encuestas">
+  <div class="mg">
+    <div class="mc"><div class="ml">Ipsos (27 mar)</div><div class="mv dn">9%</div><div class="md dn">↓ desde 12% feb</div></div>
+    <div class="mc"><div class="ml">IEP (fin mar)</div><div class="mv dn">8.7%</div><div class="md dn">↓ mínimo histórico</div></div>
+    <div class="mc"><div class="ml">CPI (mar)</div><div class="mv dn">11.2%</div><div class="md dn">↓ desde 14.6% feb</div></div>
+    <div class="mc"><div class="ml">Indecisos</div><div class="mv neu">23%</div><div class="md neu">↓ bajando</div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Intención de voto — IEP fin de marzo 2026</div>
+    <div class="crow"><div class="ci" style="background:#fce7f3;color:#9d174d">KF</div><div class="cn">Keiko Fujimori · Fuerza Popular</div><div class="cpb"><div class="cpf" style="width:100%;background:#9d174d"></div></div><div class="cv2" style="color:#9d174d">10.0%</div></div>
+    <div class="crow"><div class="ci" style="background:#dbeafe;color:#1e3a5f">RL</div><div class="cn">Rafael López Aliaga · Ren. Popular</div><div class="cpb"><div class="cpf" style="width:87%;background:#1e3a5f"></div></div><div class="cv2" style="color:#1e3a5f">8.7%</div></div>
+    <div class="crow"><div class="ci" style="background:#dcfce7;color:#14532d">CA</div><div class="cn">Carlos Álvarez · País para Todos</div><div class="cpb"><div class="cpf" style="width:69%;background:#14532d"></div></div><div class="cv2" style="color:#14532d">6.9%</div></div>
+    <div class="crow"><div class="ci" style="background:#fef9c3;color:#713f12">RS</div><div class="cn">Roberto Sánchez · Juntos por el Perú</div><div class="cpb"><div class="cpf" style="width:67%;background:#713f12"></div></div><div class="cv2" style="color:#713f12">6.7%</div></div>
+    <div class="crow"><div class="ci" style="background:#ede9fe;color:#5b21b6">AL</div><div class="cn">Alfonso López-Chau · Ahora Nación</div><div class="cpb"><div class="cpf" style="width:64%;background:#5b21b6"></div></div><div class="cv2" style="color:#5b21b6">6.4%</div></div>
+    <div class="crow"><div class="ci" style="background:#f3e8ff;color:#6b21a8">JN</div><div class="cn">Jorge Nieto · Buen Gobierno</div><div class="cpb"><div class="cpf" style="width:54%;background:#6b21a8"></div></div><div class="cv2" style="color:#6b21a8">5.4%</div></div>
+    <div class="crow"><div class="ci" style="background:#f1f5f9;color:#475569">In</div><div class="cn">Indecisos / Blanco / Nulo</div><div class="cpb"><div class="cpf" style="width:100%;background:#94a3b8"></div></div><div class="cv2" style="color:#94a3b8">~23%</div></div>
+  </div>
+  <div class="card">
+    <div class="ct">Evolución de López Aliaga — todas las encuestadoras</div>
+    <div class="cw" style="height:220px"><canvas id="cv-enc"></canvas></div>
+  </div>
+</div>
+
+<!-- ANÁLISIS -->
+<div class="sec" id="sec-analisis">
+  <div class="card">
+    <div class="ct">
+      Análisis de coyuntura — Claude IA en tiempo real
+      <span id="analisis-riesgo-badge"></span>
+    </div>
+    <div id="analisis-boxes">
+      <div class="skeleton tall"></div>
+      <div class="skeleton tall" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Resumen ejecutivo</div>
+    <div class="abox" id="resumen-ejecutivo">Cargando…</div>
+  </div>
+  <div class="card">
+    <div class="ct">Fuentes activas en esta actualización</div>
+    <div id="fuentes-list" style="font-size:12px;color:#6b7280;line-height:2.1">Cargando fuentes…</div>
+  </div>
+</div>
+
+</div><!-- /cnt -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   ESTADO GLOBAL
+══════════════════════════════════════════════════════════ */
+var NOTICIAS    = [];
+var LAST_DATA   = null;
+var currentFilter = 'todos';
+var autoTimer     = null;
+var autoProgress  = null;
+var autoSeconds   = 300;
+var secondsLeft   = 0;
+var charts        = {};
+
+// ▼ Cambia esta URL si tu API está en otro dominio/puerto
+var API_URL = '/api/dashboard';
+
+/* ══════════════════════════════════════════════════════════
+   UTILIDADES
+══════════════════════════════════════════════════════════ */
+function now() {
+  var n = new Date();
+  return String(n.getHours()).padStart(2,'0') + ':' +
+         String(n.getMinutes()).padStart(2,'0') + ':' +
+         String(n.getSeconds()).padStart(2,'0');
+}
+function daysTo(d) {
+  var t = new Date(d), o = new Date();
+  o.setHours(0,0,0,0);
+  return Math.max(0, Math.ceil((t - o) / 86400000));
+}
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, 3000);
+}
+function setVal(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
+function setHTML(id, h) { var e = document.getElementById(id); if (e) e.innerHTML = h; }
+function flashCard(id) {
+  var e = document.getElementById(id);
+  if (!e) return;
+  e.classList.remove('updated'); void e.offsetWidth; e.classList.add('updated');
+}
+function formatSeconds(s) { return s < 60 ? s + ' seg' : Math.round(s/60) + ' min'; }
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function badgeRiesgo(r) {
+  if (r === 'alto')  return '<span class="badge-alto">🔴 Riesgo alto</span>';
+  if (r === 'medio') return '<span class="badge-medio">🟡 Riesgo medio</span>';
+  return '<span class="badge-bajo">🟢 Riesgo bajo</span>';
+}
+function tonoColor(s) {
+  return s === 'neg' ? '#dc2626' : s === 'pos' ? '#15803d' : '#94a3b8';
+}
+
+/* ══════════════════════════════════════════════════════════
+   RELOJ Y DÍAS
+══════════════════════════════════════════════════════════ */
+function updateClock() { setVal('clock', now()); }
+function updateDias() {
+  var d = daysTo('2026-04-12');
+  setVal('dias-counter', d + ' día' + (d===1?'':'s'));
+}
+setInterval(updateClock, 1000);
+setInterval(updateDias, 60000);
+updateClock(); updateDias();
+
+/* ══════════════════════════════════════════════════════════
+   RENDER — NOTICIAS
+══════════════════════════════════════════════════════════ */
+function renderNews() {
+  var list = currentFilter === 'todos'
+    ? NOTICIAS
+    : NOTICIAS.filter(function(n){ return n.s === currentFilter; });
+
+  if (!list.length) {
+    setHTML('news-list',
+      '<div style="padding:24px;text-align:center;color:#9ca3af;font-size:13px">' +
+      (NOTICIAS.length === 0 ? 'Esperando datos de la API…' : 'No hay noticias con ese filtro.') +
+      '</div>');
+    return;
+  }
+  setHTML('news-list', list.map(function(n) {
+    var bc = n.s==='neg'?'bneg':n.s==='pos'?'bpos':'bneu';
+    var tc = n.s==='neg'?'tr':n.s==='pos'?'tg':'tn';
+    var tl = n.s==='neg'?'Negativo':n.s==='pos'?'Positivo':'Neutro';
+    var nb = n.nuevo ? '<span class="ni-new">NUEVO</span>' : '';
+    var tg = (n.tags||[]).map(function(t){ return '<span class="tag tn">'+esc(t)+'</span>'; }).join('');
+    return '<div class="ni"><div class="ni-bar '+bc+'"></div><div style="flex:1">'+
+      '<div class="ni-t">'+esc(n.t)+nb+'</div>'+
+      '<div class="ni-m">'+esc(n.f||'')+(n.h?' · '+esc(n.h):'')+'</div>'+
+      '<div class="ni-b">'+esc(n.r||'')+'</div>'+
+      '<div class="ni-tags"><span class="tag '+tc+'">'+tl+'</span>'+tg+'</div>'+
+      '</div></div>';
+  }).join(''));
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER — MÉTRICAS (tarjetas de resumen)
+══════════════════════════════════════════════════════════ */
+function renderMetrics(data) {
+  var neg  = NOTICIAS.filter(function(n){ return n.s==='neg'; }).length;
+  var pos  = NOTICIAS.filter(function(n){ return n.s==='pos'; }).length;
+  var tot  = NOTICIAS.length;
+  var pN   = tot > 0 ? Math.round(neg/tot*100) : 0;
+  var pP   = tot > 0 ? Math.round(pos/tot*100) : 0;
+
+  setVal('m-total', tot);
+  setVal('m-neg',   neg);
+  setVal('m-pos',   pos);
+  setVal('m-neg-pct', pN + '% cobertura');
+  setVal('m-pos-pct', pP + '% cobertura');
+  setHTML('m-riesgo', badgeRiesgo(data.riesgo || 'bajo'));
+  setVal('m-tema',  data.tema_principal || '');
+
+  var banner = document.getElementById('alerta-banner');
+  if (data.crisis) {
+    banner.classList.add('show');
+    toast('🚨 CRISIS: ' + (data.tema_principal || 'cobertura negativa dominante'));
+  } else {
+    banner.classList.remove('show');
+  }
+
+  ['mc-total','mc-neg','mc-pos','mc-riesgo'].forEach(flashCard);
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER — SENTIMIENTO
+══════════════════════════════════════════════════════════ */
+function renderSentimiento(data) {
+  var neg  = NOTICIAS.filter(function(n){ return n.s==='neg'; }).length;
+  var pos  = NOTICIAS.filter(function(n){ return n.s==='pos'; }).length;
+  var tot  = NOTICIAS.length || 1;
+  var pPos = Math.round(pos/tot*100);
+  var pNeg = Math.round(neg/tot*100);
+  var pNeu = 100 - pPos - pNeg;
+
+  setVal('sp-txt', pPos + '% positivo');
+  setVal('sn-txt', pNeu + '% neutral');
+  setVal('sg-txt', pNeg + '% negativo');
+  document.getElementById('sbar-p').style.width = pPos + '%';
+  document.getElementById('sbar-n').style.width = pNeu + '%';
+  document.getElementById('sbar-g').style.width = pNeg + '%';
+
+  setVal('sent-analysis', data.resumen_ejecutivo || 'Sin análisis disponible.');
+  setHTML('sent-riesgo-badge', badgeRiesgo(data.riesgo || 'bajo'));
+
+  var temas   = data.temas || [];
+  var rechazo = temas.filter(function(t){ return t.tono==='neg'; });
+  var apoyo   = temas.filter(function(t){ return t.tono==='pos'; });
+
+  setHTML('sent-rechazo-list', rechazo.length
+    ? rechazo.map(function(t){
+        return '<div class="trow"><div class="tn2">'+esc(t.nombre)+'</div><span class="tag tr">rechazo</span></div>';
+      }).join('')
+    : '<div style="color:#9ca3af;font-size:12px;padding:8px 0">Sin temas negativos destacados.</div>');
+
+  setHTML('sent-apoyo-list', apoyo.length
+    ? apoyo.map(function(t){
+        return '<div class="trow"><div class="tn2">'+esc(t.nombre)+'</div><span class="tag tg">apoyo</span></div>';
+      }).join('')
+    : '<div style="color:#9ca3af;font-size:12px;padding:8px 0">Sin temas positivos destacados.</div>');
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER — TEMAS CLAVE
+══════════════════════════════════════════════════════════ */
+function renderTemas(data) {
+  var temas = data.temas || [];
+
+  if (!temas.length) {
+    setHTML('temas-list', '<div style="color:#9ca3af;font-size:12px;padding:12px 0">No hay temas disponibles.</div>');
+  } else {
+    var maxP = Math.max.apply(null, temas.map(function(t){ return t.pct||0; })) || 1;
+    setHTML('temas-list', temas.map(function(t) {
+      var color = tonoColor(t.tono);
+      var bar   = Math.round((t.pct||0) / maxP * 100);
+      return '<div class="trow">'+
+        '<div class="tn2">'+esc(t.nombre)+'</div>'+
+        '<div class="tbw"><div class="tbf" style="width:'+bar+'%;background:'+color+'"></div></div>'+
+        '<div class="tpct">'+(t.pct||0)+'%</div>'+
+      '</div>';
+    }).join(''));
+  }
+
+  // Destruir gráfico previo y reconstruir con datos frescos
+  if (charts['temas']) { charts['temas'].destroy(); delete charts['temas']; }
+  buildTemas(temas);
+  setVal('temas-fecha', 'actualizado ' + new Date().toLocaleTimeString('es-PE'));
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER — ANÁLISIS
+══════════════════════════════════════════════════════════ */
+function renderAnalisis(data) {
+  var an = data.analisis || {};
+  var boxes = [
+    { label:'Situación en encuestas', texto: an.situacion_encuestas },
+    { label:'Imagen regional',        texto: an.imagen_regional },
+    { label:'Fortalezas',             texto: an.fortalezas },
+    { label:'Segunda vuelta',         texto: an.segunda_vuelta }
+  ].filter(function(b){ return b.texto && b.texto.trim(); });
+
+  setHTML('analisis-boxes', boxes.length
+    ? boxes.map(function(b){
+        return '<div class="abox"><strong>'+esc(b.label)+':</strong> '+esc(b.texto)+'</div>';
+      }).join('')
+    : '<div class="abox">Análisis de IA no disponible en este ciclo.</div>');
+
+  setVal('resumen-ejecutivo', data.resumen_ejecutivo || 'Sin resumen disponible.');
+  setHTML('analisis-riesgo-badge', badgeRiesgo(data.riesgo || 'bajo'));
+
+  // Fuentes: derivadas de las noticias cargadas
+  var fuentes = {};
+  NOTICIAS.forEach(function(n){ if (n.f) fuentes[n.f] = true; });
+  var keys = Object.keys(fuentes);
+  setHTML('fuentes-list', keys.length
+    ? keys.map(function(f){ return '· <strong>'+esc(f)+'</strong><br>'; }).join('')
+    : 'Sin fuentes disponibles.');
+}
+
+/* ══════════════════════════════════════════════════════════
+   FILTROS
+══════════════════════════════════════════════════════════ */
+document.getElementById('filter-row').addEventListener('click', function(e) {
+  var btn = e.target.closest('.fbt');
+  if (!btn) return;
+  currentFilter = btn.dataset.filter;
+  document.querySelectorAll('.fbt').forEach(function(b){ b.classList.remove('on'); });
+  btn.classList.add('on');
+  renderNews();
+});
+
+/* ══════════════════════════════════════════════════════════
+   NAV
+══════════════════════════════════════════════════════════ */
+function showSection(id) {
+  document.querySelectorAll('.sec').forEach(function(s){ s.classList.remove('on'); });
+  document.querySelectorAll('.nb').forEach(function(b){ b.classList.remove('on'); });
+  var sec = document.getElementById('sec-'+id);
+  var nav = document.getElementById('nav-'+id);
+  if (sec) sec.classList.add('on');
+  if (nav) nav.classList.add('on');
+
+  if (LAST_DATA) {
+    if (id==='sentimiento') { renderSentimiento(LAST_DATA); buildEvo(); }
+    if (id==='temas')       { renderTemas(LAST_DATA); }
+    if (id==='encuestas')   { buildEnc(); }
+    if (id==='analisis')    { renderAnalisis(LAST_DATA); }
+  }
+}
+
+['noticias','sentimiento','temas','encuestas','analisis'].forEach(function(id) {
+  var btn = document.getElementById('nav-'+id);
+  if (btn) btn.addEventListener('click', function(){ showSection(id); });
+});
+
+/* ══════════════════════════════════════════════════════════
+   GRÁFICOS
+══════════════════════════════════════════════════════════ */
+function buildEvo() {
+  var cv = document.getElementById('cv-evo');
+  if (!cv || charts['evo']) return;
+  charts['evo'] = new Chart(cv, {
+    type:'line',
+    data:{
+      labels:['Ene','Feb (1)','Feb (2)','Mar ini','Mar fin','Abr est'],
+      datasets:[
+        {label:'López Aliaga', data:[14.7,14.6,13.9,11.7,8.7,8.2],  borderColor:'#1e3a5f',backgroundColor:'rgba(30,58,95,0.08)',fill:true,tension:0.4,pointRadius:3},
+        {label:'Keiko Fujimori',data:[8.1,10.3,10.1,9.4,10.0,10.1], borderColor:'#9d174d',fill:false,tension:0.4,pointRadius:3},
+        {label:'Carlos Álvarez',data:[4.0,4.9,6.6,6.9,6.9,7.2],     borderColor:'#14532d',fill:false,tension:0.4,pointRadius:3,borderDash:[5,3]},
+        {label:'R. Sánchez',    data:[null,null,null,4.5,6.7,7.0],   borderColor:'#713f12',fill:false,tension:0.4,pointRadius:3,borderDash:[3,3]}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:12}}},
+      scales:{
+        y:{min:0,max:18,ticks:{callback:function(v){return v+'%';},font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}},
+        x:{grid:{display:false},ticks:{font:{size:10}}}
+      }
+    }
+  });
+}
+
+function buildTemas(temas) {
+  var cv = document.getElementById('cv-temas');
+  if (!cv) return;
+  var labels, neg, pos, neu;
+  if (temas && temas.length) {
+    labels = temas.map(function(t){ return t.nombre; });
+    neg = temas.map(function(t){ return t.tono==='neg' ? (t.pct||50) : 0; });
+    pos = temas.map(function(t){ return t.tono==='pos' ? (t.pct||50) : 0; });
+    neu = temas.map(function(t){ return t.tono==='neu' ? (t.pct||50) : 0; });
+  } else {
+    labels=['Protestas','Encuestas','Debate','ONPE','Propuestas','Lima/Apoyo','Seguridad'];
+    neg=[95,88,45,72,62,0,28]; pos=[0,0,22,0,10,50,20]; neu=[5,12,33,28,28,50,52];
+  }
+  charts['temas'] = new Chart(cv, {
+    type:'bar',
+    data:{
+      labels:labels,
+      datasets:[
+        {label:'Negativo',data:neg,backgroundColor:'#dc2626',borderRadius:2},
+        {label:'Positivo',data:pos,backgroundColor:'#15803d',borderRadius:2},
+        {label:'Neutral', data:neu,backgroundColor:'#94a3b8',borderRadius:2}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:12}}},
+      scales:{
+        x:{stacked:true,grid:{display:false},ticks:{font:{size:10}}},
+        y:{stacked:true,max:100,ticks:{callback:function(v){return v+'%';},font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}}
+      }
+    }
+  });
+}
+
+function buildEnc() {
+  var cv = document.getElementById('cv-enc');
+  if (!cv || charts['enc']) return;
+  charts['enc'] = new Chart(cv, {
+    type:'line',
+    data:{
+      labels:['Nov 25','Dic 25','Ene 26','Feb 26','Mar ini','Mar fin','Abr est'],
+      datasets:[
+        {label:'IEP',   data:[null,null,14.7,14.6,11.7,8.7,8.2], borderColor:'#1e3a5f',tension:0.4,pointRadius:3,fill:false},
+        {label:'CPI',   data:[12.5,null,13.6,14.6,11.2,null,null],borderColor:'#7c3aed',tension:0.4,pointRadius:3,fill:false,borderDash:[5,3]},
+        {label:'Ipsos', data:[null,null,null,12.0,null,9.0,null], borderColor:'#dc2626',tension:0.4,pointRadius:4,fill:false}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:12}}},
+      scales:{
+        y:{min:0,max:18,ticks:{callback:function(v){return v+'%';},font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}},
+        x:{grid:{display:false},ticks:{font:{size:10}}}
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   REFRESH PRINCIPAL — llama a /api/dashboard
+══════════════════════════════════════════════════════════ */
+async function refreshAll() {
+  var btn  = document.getElementById('btn-refresh');
+  var icon = document.getElementById('btn-icon');
+  var dot  = document.getElementById('status-dot');
+  var err  = document.getElementById('error-banner');
+
+  if (btn.disabled) return;
+  btn.disabled = true;
+  icon.textContent = '⏳';
+  dot.classList.remove('off');
+  dot.classList.add('syncing');
+  err.classList.remove('show');
+
+  try {
+    var res = await fetch(API_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' — verifica que el servidor esté activo');
+
+    var data = await res.json();
+
+    // Mostrar error parcial si la API lo indica
+    if (data.error) {
+      err.textContent = '⚠️ ' + data.error;
+      err.classList.add('show');
+    }
+
+    LAST_DATA = data;
+
+    // Normalizar noticias
+    NOTICIAS = (data.noticias || []).map(function(n, i) {
+      return {
+        t:    n.t || '',
+        f:    n.f || 'Fuente',
+        h:    n.h || 'ahora',
+        s:    ['neg','pos','neu'].includes(n.s) ? n.s : 'neu',
+        r:    n.r || n.t || '',
+        tags: Array.isArray(n.tags) ? n.tags : [],
+        nuevo: i < 3
+      };
+    });
+
+    // Renderizar todos los paneles
+    renderNews();
+    renderMetrics(data);
+    renderSentimiento(data);
+    renderTemas(data);
+    renderAnalisis(data);
+
+    var t = new Date().toLocaleTimeString('es-PE');
+    setVal('last-update-txt', 'Última actualización: ' + t);
+    setVal('last-src', 'GNews + Claude IA · ' + t);
+
+    dot.classList.remove('syncing', 'off');
+    resetProgress();
+    toast('✅ Dashboard actualizado — ' + t);
+
+  } catch(e) {
+    console.error('[refreshAll]', e);
+    dot.classList.remove('syncing');
+    dot.classList.add('off');
+    err.textContent = '❌ No se pudo conectar con /api/dashboard: ' + e.message +
+      '. Asegúrate de correr el proyecto con "vercel dev" y de tener las variables GNEWS_TOKEN y ANTHROPIC_API_KEY configuradas.';
+    err.classList.add('show');
+    toast('❌ Error al actualizar');
+  } finally {
+    btn.disabled = false;
+    icon.textContent = '↻';
+  }
+}
+
+document.getElementById('btn-refresh').addEventListener('click', refreshAll);
+
+/* ══════════════════════════════════════════════════════════
+   AUTO-UPDATE
+══════════════════════════════════════════════════════════ */
+function setAutoUpdate() {
+  clearInterval(autoTimer);
+  clearInterval(autoProgress);
+  document.getElementById('prog').style.width = '0%';
+  var val = parseInt(document.getElementById('auto-interval').value);
+  if (val === 0) { toast('Modo manual activado'); return; }
+  autoSeconds = val; secondsLeft = val;
+  startProgress();
+  autoTimer = setInterval(function(){ refreshAll(); secondsLeft = autoSeconds; }, val * 1000);
+  toast('Auto-actualización cada ' + formatSeconds(val));
+}
+
+function startProgress() {
+  clearInterval(autoProgress);
+  var prog = document.getElementById('prog');
+  autoProgress = setInterval(function() {
+    secondsLeft = Math.max(0, secondsLeft - 1);
+    var pct = ((autoSeconds - secondsLeft) / autoSeconds) * 100;
+    if (prog) prog.style.width = pct + '%';
+    if (secondsLeft === 0) { prog.style.width = '0%'; secondsLeft = autoSeconds; }
+  }, 1000);
+}
+
+function resetProgress() {
+  secondsLeft = autoSeconds;
+  var prog = document.getElementById('prog');
+  if (prog) prog.style.width = '0%';
+}
+
+document.getElementById('auto-interval').addEventListener('change', setAutoUpdate);
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
+buildEnc(); // gráfico de encuestas (datos estáticos, construir de inmediato)
+refreshAll(); // primera carga de datos en vivo
+setTimeout(setAutoUpdate, 1200); // activar auto-update después de la primera carga
+</script>
+</body>
+</html>
