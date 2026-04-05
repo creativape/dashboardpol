@@ -434,7 +434,36 @@ function refreshAll(){
   dot.classList.add('syncing');
 
   // Simula actualización con variaciones pequeñas en datos
-  setTimeout(function(){
+  async function refreshAll(){
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/dashboard');
+    const data = await res.json();
+
+    // AQUÍ reemplazas noticias
+    const texto = data.content[0].text;
+
+    // ejemplo simple (luego lo mejoras)
+    NOTICIAS_BASE = texto.split('\n').map(t => ({
+      t: t,
+      f: "Claude AI",
+      h: "ahora",
+      s: "neu",
+      r: t,
+      tags: ["IA"],
+      nuevo: true
+    }));
+
+    renderNews();
+
+  } catch (err) {
+    console.error(err);
+  }
+
+  btn.disabled = false;
+}
     // Marca algunos como nuevos aleatoriamente
     NOTICIAS_BASE.forEach(function(n){ n.nuevo=false; });
     // pequeña variación en sentimiento
