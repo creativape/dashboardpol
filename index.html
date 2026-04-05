@@ -423,94 +423,55 @@ function buildEnc(){
 }
 
 /* ── REFRESH ─────────────────────────────────────────────── */
-function refreshAll(){
-  var btn=document.getElementById('btn-refresh');
-  var icon=document.getElementById('btn-icon');
-  var dot=document.getElementById('status-dot');
-  if(btn.disabled)return;
-
-  btn.disabled=true;
-  if(icon)icon.outerHTML='<span id="btn-icon" class="spin"></span>';
-  dot.classList.add('syncing');
-
-  // Simula actualización con variaciones pequeñas en datos
-  async function refreshAll(){
+async function refreshAll(){
   const btn = document.getElementById('btn-refresh');
+  const icon = document.getElementById('btn-icon');
+  const dot = document.getElementById('status-dot');
+
+  if(btn.disabled) return;
+
   btn.disabled = true;
+  if(icon) icon.innerHTML = "⏳";
+  dot.classList.add('syncing');
 
   try {
     const res = await fetch('/api/dashboard');
     const data = await res.json();
 
-    // AQUÍ reemplazas noticias
-    let texto = "";
+    let noticias = [];
 
-if (data.fallback) {
-  texto = data.noticias.join("\n");
-} else {
-  texto = data.content[0].text;
-}
+    if (data.noticias && Array.isArray(data.noticias)) {
+      noticias = data.noticias;
+    } else {
+      throw new Error("Formato inválido");
+    }
 
-    // ejemplo simple (luego lo mejoras)
-    NOTICIAS_BASE = texto.split('\n').map(t => ({
-      t: t,
-      f: "Claude AI",
-      h: "ahora",
-      s: "neu",
-      r: t,
-      tags: ["IA"],
-      nuevo: true
-    }));
+    NOTICIAS_BASE = noticias.map(function(t){
+      return {
+        t: t,
+        f: "Sistema",
+        h: "ahora",
+        s: "neu",
+        r: t,
+        tags: ["Actualizado"],
+        nuevo: true
+      };
+    });
 
     renderNews();
+
+    document.getElementById('last-update-txt').textContent =
+      'Última actualización: ' + new Date().toLocaleTimeString();
 
   } catch (err) {
     console.error(err);
+    alert("Error actualizando noticias");
   }
 
   btn.disabled = false;
+  if(icon) icon.innerHTML = "↻";
+  dot.classList.remove('syncing');
 }
-    // Marca algunos como nuevos aleatoriamente
-    NOTICIAS_BASE.forEach(function(n){ n.nuevo=false; });
-    // pequeña variación en sentimiento
-    var sentEl={p:document.getElementById('sbar-p'),n:document.getElementById('sbar-n'),g:document.getElementById('sbar-g')};
-    var pv=Math.max(10,Math.min(20,14+Math.round((Math.random()-0.5)*4)));
-    var nv=Math.max(10,Math.min(20,14+Math.round((Math.random()-0.5)*3)));
-    var gv=100-pv-nv;
-    if(sentEl.p)sentEl.p.style.width=pv+'%';
-    if(sentEl.n)sentEl.n.style.width=nv+'%';
-    if(sentEl.g)sentEl.g.style.width=gv+'%';
-    var spEl=document.getElementById('sp-txt');if(spEl)spEl.textContent=pv+'% positivo';
-    var snEl=document.getElementById('sn-txt');if(snEl)snEl.textContent=nv+'% neutral';
-    var sgEl=document.getElementById('sg-txt');if(sgEl)sgEl.textContent=gv+'% negativo';
-    var stEl=document.getElementById('sent-time');if(stEl)stEl.textContent=now();
-
-    // flash metric cards
-    ['mc-total','mc-neg','mc-pos','mc-encuesta'].forEach(flashCard);
-
-    renderNews();
-
-    // Restore button
-    var btnEl=document.getElementById('btn-refresh');
-    var iconEl=document.getElementById('btn-icon');
-    if(btnEl)btnEl.disabled=false;
-    if(iconEl)iconEl.outerHTML='<span id="btn-icon">↻</span>';
-    dot.classList.remove('syncing');
-
-    var luEl=document.getElementById('last-update-txt');
-    if(luEl)luEl.textContent='Última actualización: '+nowFull();
-
-    var srcEl=document.getElementById('last-src');
-    if(srcEl)srcEl.textContent='Actualizado: '+nowFull()+' · Fuentes: Infobae, La República, RPP';
-
-    var adEl=document.getElementById('analisis-date');
-    if(adEl)adEl.textContent=new Date().toLocaleDateString('es-PE',{day:'numeric',month:'long',year:'numeric'});
-
-    toast('Dashboard actualizado · '+now());
-    resetProgress();
-  }, 1800);
-}
-
 /* ── AUTO-UPDATE ─────────────────────────────────────────── */
 function setAutoUpdate(){
   clearInterval(autoTimer);
