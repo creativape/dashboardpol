@@ -360,6 +360,14 @@ updateClock();updateDias();
 
 /* ── NOTICIAS ───────────────────────────────────────────── */
 function renderNews(){
+  // 🚨 ALERTA DE TENDENCIA NEGATIVA
+const negativas = NOTICIAS_BASE.filter(function(n){
+  return n.s === "neg";
+}).length;
+
+if (negativas >= 3) {
+  alert("⚠️ ALERTA: alta tendencia negativa en medios");
+}
   var list=currentFilter==='todos'?NOTICIAS_BASE:NOTICIAS_BASE.filter(function(n){
     return(currentFilter==='neg'&&n.s==='neg')||(currentFilter==='pos'&&n.s==='pos')||(currentFilter==='neu'&&n.s==='neu');
   });
