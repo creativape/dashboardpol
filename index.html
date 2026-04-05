@@ -433,43 +433,40 @@ function buildEnc(){
 /* ── REFRESH ─────────────────────────────────────────────── */
 async function refreshAll(){
   const btn = document.getElementById('btn-refresh');
-  const icon = document.getElementById('btn-icon');
   const dot = document.getElementById('status-dot');
 
   if(btn.disabled) return;
 
   btn.disabled = true;
-  if(icon) icon.innerHTML = "⏳";
   dot.classList.add('syncing');
 
   try {
     const res = await fetch('/api/dashboard');
     const data = await res.json();
 
-    let noticias = [];
-
-    if (data.noticias && Array.isArray(data.noticias)) {
-      noticias = data.noticias;
-    } else {
-      throw new Error("Formato inválido");
-    }
-
     NOTICIAS_BASE = data.noticias.map(function(n){
-  return {
-    t: n.t || n,          // título
-    f: "Fuente externa",  // fuente
-    h: "ahora",           // tiempo
-    s: n.s || "neu",      // sentimiento
-    r: n.t || n,          // resumen
-    tags: ["Tiempo real"],
-    nuevo: true
-  };
-});
-    console.log("Noticias nuevas:", NOTICIAS_BASE);
+      return {
+        t: n.t || n,
+        f: "Fuente externa",
+        h: "ahora",
+        s: n.s || "neu",
+        r: n.t || n,
+        tags: ["Tiempo real"],
+        nuevo: true
+      };
+    });
 
     renderNews();
-actualizarDashboard();  // 👈 ESTA ES LA CLAVE
+    actualizarDashboard();
 
+  } catch (err) {
+    console.error(err);
+    alert("Error actualizando");
+  }
+
+  btn.disabled = false;
+  dot.classList.remove('syncing');
+}
 // 📊 SENTIMIENTO
 const total = NOTICIAS_BASE.length;
 
