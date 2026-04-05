@@ -480,7 +480,10 @@ async function refreshAll(){
   if(icon) icon.innerHTML = "↻";
   dot.classList.remove('syncing');
 }
-/* ── AUTO-UPDATE ─────────────────────────────────────────── */
+if (data.crisis) {
+  toast("🚨 CRISIS DETECTADA: " + data.tema + " (" + data.riesgo + ")");
+}
+  /* ── AUTO-UPDATE ─────────────────────────────────────────── */
 function setAutoUpdate(){
   clearInterval(autoTimer);
   clearInterval(autoProgress);
