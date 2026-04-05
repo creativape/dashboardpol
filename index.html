@@ -614,6 +614,48 @@ function show(id,btn){
   if(id==='temas'){buildTemas();}
   if(id==='encuestas'){buildEnc();}
 }
+/* ── NAV ─────────────────────────────────────────────────── */
+function show(id,btn){
+  ...
+}
+
+/* 👇 PEGA AQUÍ */
+function actualizarDashboard(){
+
+  const total = NOTICIAS_BASE.length;
+
+  const pos = NOTICIAS_BASE.filter(n => n.s === "pos").length;
+  const neg = NOTICIAS_BASE.filter(n => n.s === "neg").length;
+  const neu = NOTICIAS_BASE.filter(n => n.s === "neu").length;
+
+  const pPos = Math.round((pos / total) * 100) || 0;
+  const pNeg = Math.round((neg / total) * 100) || 0;
+  const pNeu = 100 - pPos - pNeg;
+
+  document.getElementById('sp-txt').textContent = pPos + "% positivo";
+  document.getElementById('sn-txt').textContent = pNeu + "% neutral";
+  document.getElementById('sg-txt').textContent = pNeg + "% negativo";
+
+  document.getElementById('sbar-p').style.width = pPos + "%";
+  document.getElementById('sbar-n').style.width = pNeu + "%";
+  document.getElementById('sbar-g').style.width = pNeg + "%";
+
+  let analisis = "";
+
+  if (neg > pos) {
+    analisis = "Predomina cobertura negativa. Posible desgaste en imagen pública.";
+  } else if (pos > neg) {
+    analisis = "Cobertura favorable. Buen momento mediático.";
+  } else {
+    analisis = "Cobertura equilibrada sin tendencia clara.";
+  }
+
+  document.getElementById("sent-analysis").textContent = analisis;
+
+  if (neg >= total * 0.6 && total > 0) {
+    toast("🚨 CRISIS: cobertura mayoritariamente negativa");
+  }
+}
 
 /* ── INIT ────────────────────────────────────────────────── */
 renderNews();
