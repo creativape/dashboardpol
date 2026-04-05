@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   try {
     // 1️⃣ TRAER NOTICIAS REALES
     const newsRes = await fetch(
-      "https://gnews.io/api/v4/search?q=López Aliaga Perú&lang=es&token=TU_API_KEY"
+      "https://gnews.io/api/v4/search?q=López Aliaga Perú&lang=es&token=78bf95dff98ab4dfc415eea5eb2188db"
     );
 
     const newsData = await newsRes.json();
