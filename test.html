@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico API — Monitor Electoral</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Courier New',monospace;background:#0a0e1a;color:#e2e8f0;padding:24px;font-size:13px;line-height:1.6}
+h1{font-family:system-ui,sans-serif;font-size:18px;font-weight:700;color:#3b82f6;margin-bottom:6px}
+.sub{color:#64748b;font-size:12px;margin-bottom:24px}
+.step{background:#111827;border:1px solid #1f2d40;border-radius:8px;padding:16px;margin-bottom:12px}
+.step-title{font-family:system-ui,sans-serif;font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.icon{font-size:16px}
+.result{background:#0a0e1a;border-radius:4px;padding:10px;margin-top:8px;white-space:pre-wrap;word-break:break-all;font-size:11px;min-height:32px;max-height:300px;overflow-y:auto}
+.ok{color:#22c55e}.err{color:#ef4444}.warn{color:#f59e0b}.muted{color:#64748b}.info{color:#60a5fa}
+.btn{background:#3b82f6;color:white;border:none;border-radius:6px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:system-ui,sans-serif;margin-top:6px;transition:background .15s}
+.btn:hover{background:#2563eb}
+.btn:disabled{background:#374151;cursor:not-allowed}
+.status{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:#64748b;flex-shrink:0}
+.status.ok{background:#22c55e}
+.status.err{background:#ef4444}
+.status.running{animation:spin 1s linear infinite;border:2px solid #3b82f6;border-top-color:transparent;background:transparent}
+@keyframes spin{to{transform:rotate(360deg)}}
+.divider{border:none;border-top:1px solid #1f2d40;margin:20px 0}
+.summary{background:linear-gradient(135deg,rgba(59,130,246,.1),rgba(14,165,233,.05));border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:16px;margin-bottom:20px}
+.summary h2{font-family:system-ui,sans-serif;font-size:14px;font-weight:700;color:#60a5fa;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<h1>🔍 Diagnóstico de API — Monitor Electoral</h1>
+<div class="sub">Esta página prueba cada componente del sistema y te dice exactamente qué está fallando.</div>
+
+<div class="summary" id="summary" style="display:none">
+  <h2>📋 Resumen</h2>
+  <div id="summary-content"></div>
+</div>
+
+<button class="btn" id="btn-run" onclick="runAll()">▶ Ejecutar diagnóstico completo</button>
+
+<hr class="divider">
+
+<!-- TEST 1: Ruta API -->
+<div class="step" id="step-1">
+  <div class="step-title">
+    <span class="status" id="s1"></span>
+    <span class="icon">🌐</span>
+    <span>Test 1 — ¿Existe la ruta <code>/api/dashboard</code>?</span>
+  </div>
+  <div style="color:#64748b;font-size:11px;margin-bottom:6px">Verifica que Vercel reconozca el archivo como serverless function</div>
+  <div class="result muted" id="r1">Pendiente…</div>
+</div>
+
+<!-- TEST 2: Variables de entorno -->
+<div class="step" id="step-2">
+  <div class="step-title">
+    <span class="status" id="s2"></span>
+    <span class="icon">🔑</span>
+    <span>Test 2 — Variables de entorno configuradas</span>
+  </div>
+  <div style="color:#64748b;font-size:11px;margin-bottom:6px">Comprueba que ANTHROPIC_API_KEY y NEWSDATA_KEY estén presentes en el servidor</div>
+  <div class="result muted" id="r2">Pendiente…</div>
+</div>
+
+<!-- TEST 3: Reddit -->
+<div class="step" id="step-3">
+  <div class="step-title">
+    <span class="status" id="s3"></span>
+    <span class="icon">🤖</span>
+    <span>Test 3 — Reddit JSON público</span>
+  </div>
+  <div style="color:#64748b;font-size:11px;margin-bottom:6px">Verifica que Vercel pueda alcanzar reddit.com (algunos planes lo bloquean)</div>
+  <div class="result muted" id="r3">Pendiente…</div>
+</div>
+
+<!-- TEST 4: NewsData -->
+<div class="step" id="step-4">
+  <div class="step-title">
+    <span class="status" id="s4"></span>
+    <span class="icon">📰</span>
+    <span>Test 4 — NewsData.io</span>
+  </div>
+  <div style="color:#64748b;font-size:11px;margin-bottom:6px">Verifica conectividad y validez de la NEWSDATA_KEY</div>
+  <div class="result muted" id="r4">Pendiente…</div>
+</div>
+
+<!-- TEST 5: Claude -->
+<div class="step" id="step-5">
+  <div class="step-title">
+    <span class="status" id="s5"></span>
+    <span class="icon">🧠</span>
+    <span>Test 5 — Claude API (Anthropic)</span>
+  </div>
+  <div style="color:#64748b;font-size:11px;margin-bottom:6px">Verifica que la ANTHROPIC_API_KEY sea válida y tenga créditos</div>
+  <div class="result muted" id="r5">Pendiente…</div>
+</div>
+
+<!-- TEST 6: Respuesta completa -->
+<div class="step" id="step-6">
+  <div class="step-title">
+    <span class="status" id="s6"></span>
+    <span class="icon">✅</span>
+    <span>Test 6 — Respuesta completa de /api/dashboard</span>
+  </div>
+  <div style="color:#64748b;font-size:11px;margin-bottom:6px">Verifica que el JSON de respuesta tenga la estructura correcta</div>
+  <div class="result muted" id="r6">Pendiente…</div>
+</div>
+
+<script>
+/* Llama al endpoint de diagnóstico especial */
+async function runAll() {
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('btn-run').textContent = '⏳ Ejecutando…';
+  document.getElementById('summary').style.display = 'none';
+
+  const results = [];
+
+  /* ─── TEST 1: Ruta /api/dashboard-test ─────────────────── */
+  setRunning('s1', 'r1', 'Comprobando ruta…');
+  try {
+    const res = await fetch('/api/dashboard-test', { cache: 'no-store' });
+    if (res.status === 404) {
+      setErr('s1', 'r1',
+        '❌ HTTP 404 — La carpeta /api/ no existe o dashboard-test.js no está ahí.\n\n' +
+        'SOLUCIÓN: Asegúrate de que la estructura sea:\n' +
+        '  tu-proyecto/\n' +
+        '  ├── index.html\n' +
+        '  ├── test.html          ← esta página\n' +
+        '  └── api/\n' +
+        '      ├── dashboard.js\n' +
+        '      └── dashboard-test.js   ← necesitas este archivo también\n\n' +
+        'Sube dashboard-test.js a la carpeta /api/ y vuelve a desplegar.'
+      );
+      results.push({ok:false,label:'Ruta /api/'});
+    } else {
+      const data = await res.json();
+      setOk('s1', 'r1', '✅ Ruta /api/ existe y responde correctamente.\n\nRespuesta: ' + JSON.stringify(data, null, 2));
+      results.push({ok:true,label:'Ruta /api/'});
+
+      /* ─── TEST 2: Variables de entorno ─────────────────── */
+      setRunning('s2', 'r2', 'Verificando variables de entorno…');
+      const envOk = data.env || {};
+      let envMsg = '';
+      let envAll = true;
+
+      if (envOk.anthropic) {
+        envMsg += '✅ ANTHROPIC_API_KEY — presente\n';
+      } else {
+        envMsg += '❌ ANTHROPIC_API_KEY — FALTA\n   → Ve a Vercel → Settings → Environment Variables\n   → Agrega ANTHROPIC_API_KEY con tu clave sk-ant-...\n   → Haz un nuevo deploy\n';
+        envAll = false;
+      }
+      if (envOk.newsdata) {
+        envMsg += '✅ NEWSDATA_KEY — presente\n';
+      } else {
+        envMsg += '⚠  NEWSDATA_KEY — no configurada (opcional, solo usa Reddit)\n';
+      }
+
+      if (envAll) setOk('s2', 'r2', envMsg);
+      else setErr('s2', 'r2', envMsg);
+      results.push({ok:envAll,label:'Variables de entorno'});
+
+      /* ─── TEST 3: Reddit ─────────────────────────────────── */
+      setRunning('s3', 'r3', 'Probando conexión a Reddit…');
+      if (data.reddit !== undefined) {
+        if (data.reddit.ok) {
+          setOk('s3', 'r3', '✅ Reddit accesible desde Vercel.\n' +
+            '   Posts encontrados: ' + (data.reddit.count || 0) + '\n\n' +
+            (data.reddit.count === 0
+              ? '⚠ 0 posts encontrados. Reddit puede estar limitando temporalmente.\n   Espera unos minutos e intenta de nuevo.'
+              : 'Títulos encontrados:\n' + (data.reddit.titles || []).slice(0,3).map(t=>'  · '+t).join('\n')));
+          results.push({ok:data.reddit.count>0,label:'Reddit ('+data.reddit.count+' posts)'});
+        } else {
+          setErr('s3', 'r3', '❌ No se pudo conectar con Reddit desde Vercel.\n\n' +
+            'Error: ' + (data.reddit.error||'desconocido') + '\n\n' +
+            'Posibles causas:\n' +
+            '  · Plan Vercel Hobby puede bloquear algunos destinos externos\n' +
+            '  · Reddit está devolviendo CAPTCHA o rate limit\n' +
+            'Solución: Intenta de nuevo en unos minutos. Si persiste, sube a plan Pro.');
+          results.push({ok:false,label:'Reddit'});
+        }
+      }
+
+      /* ─── TEST 4: NewsData ───────────────────────────────── */
+      setRunning('s4', 'r4', 'Probando NewsData.io…');
+      if (data.newsdata !== undefined) {
+        if (!envOk.newsdata) {
+          setWarn('s4', 'r4', '⚠ NEWSDATA_KEY no configurada — test omitido.\n\nEl dashboard funciona sin esta key, solo usa Reddit.');
+          results.push({ok:true,label:'NewsData (omitido, sin key)'});
+        } else if (data.newsdata.ok) {
+          setOk('s4', 'r4', '✅ NewsData.io accesible.\n   Artículos: ' + (data.newsdata.count||0));
+          results.push({ok:true,label:'NewsData ('+data.newsdata.count+' arts.)'});
+        } else {
+          setErr('s4', 'r4', '❌ Error con NewsData.io:\n' + (data.newsdata.error||'desconocido') + '\n\n' +
+            'Verifica que la NEWSDATA_KEY sea correcta en newsdata.io/api-key');
+          results.push({ok:false,label:'NewsData'});
+        }
+      }
+
+      /* ─── TEST 5: Claude ─────────────────────────────────── */
+      setRunning('s5', 'r5', 'Probando Claude API…');
+      if (data.claude !== undefined) {
+        if (data.claude.ok) {
+          setOk('s5', 'r5', '✅ Claude API responde correctamente.\n   Modelo: ' + (data.claude.model||'haiku') + '\n   Respuesta: ' + (data.claude.reply||'').slice(0,120));
+          results.push({ok:true,label:'Claude API'});
+        } else {
+          let claudeErr = '❌ Error con Claude API:\n' + (data.claude.error||'desconocido') + '\n\n';
+          if ((data.claude.error||'').includes('401') || (data.claude.error||'').includes('invalid')) {
+            claudeErr += 'La ANTHROPIC_API_KEY es inválida.\n→ Ve a console.anthropic.com → API Keys → copia la key correcta';
+          } else if ((data.claude.error||'').includes('credit') || (data.claude.error||'').includes('quota')) {
+            claudeErr += 'Sin créditos en la cuenta de Anthropic.\n→ Ve a console.anthropic.com → Billing → agrega créditos';
+          } else {
+            claudeErr += '→ Verifica la key en Vercel → Settings → Environment Variables';
+          }
+          setErr('s5', 'r5', claudeErr);
+          results.push({ok:false,label:'Claude API'});
+        }
+      }
+
+      /* ─── TEST 6: Respuesta completa ────────────────────── */
+      setRunning('s6', 'r6', 'Verificando /api/dashboard completo…');
+      try {
+        const dashRes = await fetch('/api/dashboard', { cache: 'no-store' });
+        const dashData = await dashRes.json();
+        const hasNoticias = Array.isArray(dashData.noticias) && dashData.noticias.length > 0;
+        const hasTemas    = Array.isArray(dashData.temas);
+        const hasAnalisis = dashData.analisis && typeof dashData.analisis === 'object';
+
+        if (dashData.error) {
+          setErr('s6', 'r6', '❌ La API devolvió un error:\n' + dashData.error +
+            '\n\nJSON completo:\n' + JSON.stringify(dashData, null, 2).slice(0,600));
+          results.push({ok:false,label:'Dashboard completo'});
+        } else if (!hasNoticias) {
+          setWarn('s6', 'r6', '⚠ La API responde pero devuelve 0 noticias.\n\n' +
+            'Esto puede ocurrir cuando:\n' +
+            '  · Reddit no tiene posts recientes con "aliaga"\n' +
+            '  · NewsData.io no tiene resultados para Perú hoy\n' +
+            '  · Los timeouts de red en Vercel son muy cortos\n\n' +
+            'JSON recibido:\n' + JSON.stringify(dashData, null, 2).slice(0,400));
+          results.push({ok:false,label:'Noticias (0 resultados)'});
+        } else {
+          setOk('s6', 'r6', '✅ Dashboard funcionando correctamente!\n\n' +
+            '  Noticias: ' + dashData.noticias.length + '\n' +
+            '  Temas: ' + (dashData.temas||[]).length + '\n' +
+            '  Riesgo: ' + (dashData.riesgo||'?') + '\n' +
+            '  Crisis: ' + dashData.crisis + '\n\n' +
+            'Primera noticia:\n  ' + (dashData.noticias[0]?.t||'—'));
+          results.push({ok:true,label:'Dashboard completo ✅'});
+        }
+      } catch(e) {
+        setErr('s6', 'r6', '❌ No se pudo llamar a /api/dashboard:\n' + e.message);
+        results.push({ok:false,label:'Dashboard completo'});
+      }
+    }
+  } catch(e) {
+    setErr('s1', 'r1',
+      '❌ No se pudo conectar con /api/:\n' + e.message + '\n\n' +
+      'Causa más probable: dashboard-test.js no está en la carpeta /api/ de tu proyecto.\n\n' +
+      'Lee las instrucciones al final de esta página.'
+    );
+    results.push({ok:false,label:'Ruta /api/'});
+    // Marcar el resto como no ejecutados
+    ['s2','s3','s4','s5','s6'].forEach(function(id){
+      document.getElementById(id).className='status';
+    });
+  }
+
+  // Resumen final
+  showSummary(results);
+  document.getElementById('btn-run').disabled = false;
+  document.getElementById('btn-run').textContent = '↻ Volver a ejecutar';
+}
+
+function setRunning(sid, rid, msg) {
+  document.getElementById(sid).className = 'status running';
+  document.getElementById(rid).innerHTML = '<span class="info">⏳ ' + msg + '</span>';
+}
+function setOk(sid, rid, msg) {
+  document.getElementById(sid).className = 'status ok';
+  document.getElementById(rid).innerHTML = '<span class="ok">' + esc(msg) + '</span>';
+}
+function setErr(sid, rid, msg) {
+  document.getElementById(sid).className = 'status err';
+  document.getElementById(rid).innerHTML = '<span class="err">' + esc(msg) + '</span>';
+}
+function setWarn(sid, rid, msg) {
+  document.getElementById(sid).className = 'status';
+  document.getElementById(rid).style.borderLeft = '2px solid #f59e0b';
+  document.getElementById(rid).innerHTML = '<span class="warn">' + esc(msg) + '</span>';
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function showSummary(results) {
+  var el = document.getElementById('summary');
+  var co = document.getElementById('summary-content');
+  var allOk = results.every(function(r){return r.ok;});
+  co.innerHTML = results.map(function(r){
+    return '<div style="margin-bottom:4px">'
+      + (r.ok ? '<span class="ok">✅</span>' : '<span class="err">❌</span>')
+      + ' ' + r.label + '</div>';
+  }).join('') +
+  (allOk
+    ? '<div style="margin-top:12px;color:#22c55e;font-weight:700">🎉 Todo funciona correctamente. El dashboard debería cargar datos.</div>'
+    : '<div style="margin-top:12px;color:#f59e0b">⚠ Hay errores que resolver. Revisa los tests en rojo arriba.</div>');
+  el.style.display = 'block';
+}
+</script>
+
+<hr class="divider">
+
+<div style="background:#111827;border:1px solid #1f2d40;border-radius:8px;padding:16px;font-size:11px;color:#64748b;line-height:1.8">
+  <div style="color:#e2e8f0;font-family:system-ui,sans-serif;font-size:13px;font-weight:700;margin-bottom:10px">📋 Instrucciones: qué archivos subir a Vercel</div>
+  
+  <div style="color:#94a3b8;margin-bottom:10px">Para que este diagnóstico funcione necesitas <strong style="color:#e2e8f0">4 archivos</strong> en esta estructura:</div>
+
+  <div style="background:#0a0e1a;border-radius:4px;padding:12px;color:#4ade80;font-family:monospace;margin-bottom:14px">tu-proyecto/<br>
+├── index.html            ← el dashboard principal<br>
+├── test.html             ← esta página de diagnóstico<br>
+└── api/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── dashboard.js      ← la API principal<br>
+&nbsp;&nbsp;&nbsp;&nbsp;└── dashboard-test.js ← endpoint de diagnóstico</div>
+
+  <div style="color:#94a3b8;margin-bottom:6px"><strong style="color:#e2e8f0">Variables de entorno en Vercel → Settings → Environment Variables:</strong></div>
+  <div style="background:#0a0e1a;border-radius:4px;padding:10px;color:#f59e0b;font-family:monospace;margin-bottom:14px">ANTHROPIC_API_KEY = sk-ant-api03-...<br>NEWSDATA_KEY = pub_...</div>
+
+  <div style="color:#94a3b8"><strong style="color:#e2e8f0">Importante:</strong> Después de agregar variables de entorno, siempre haz un <strong style="color:#e2e8f0">nuevo deploy</strong> desde el panel de Vercel para que los cambios tomen efecto.</div>
+</div>
+
+</body>
+</html>
