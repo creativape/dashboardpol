@@ -494,12 +494,11 @@ function showSec(id){
   var s=document.getElementById('sec-'+id);
   var n=document.getElementById('nav-'+id);
   if(s)s.classList.add('on');if(n)n.classList.add('on');
-  if(LD){
-    if(id==='sentimiento'){renderSent(LD);buildEvo();}
-    if(id==='temas'){renderTemas(LD);}
-    if(id==='encuestas'){buildEnc();}
-    if(id==='analisis'){renderAnalisis(LD);}
-  }
+  /* Siempre re-renderizar al cambiar de panel, haya o no datos */
+  if(id==='sentimiento'){ if(LD)renderSent(LD); destroyChart('evo'); buildEvo(); }
+  if(id==='temas')      { if(LD)renderTemas(LD); }
+  if(id==='encuestas')  { destroyChart('enc'); buildEnc(); }
+  if(id==='analisis')   { if(LD)renderAnalisis(LD); }
 }
 ['noticias','sentimiento','temas','encuestas','analisis'].forEach(function(id){
   var b=document.getElementById('nav-'+id);
@@ -509,8 +508,12 @@ function showSec(id){
 /* ════════════════════════════════════════════════════════════
    GRÁFICOS
 ════════════════════════════════════════════════════════════ */
+function destroyChart(key){
+  if(charts[key]){ charts[key].destroy(); delete charts[key]; }
+}
 function buildEvo(){
-  var cv=document.getElementById('cv-evo');if(!cv||charts['evo'])return;
+  var cv=document.getElementById('cv-evo');if(!cv)return;
+  destroyChart('evo');
   charts['evo']=new Chart(cv,{type:'line',data:{labels:['Ene','Feb-1','Feb-2','Mar ini','Mar fin','Abr est'],
     datasets:[
       {label:'López Aliaga',data:[14.7,14.6,13.9,11.7,8.7,8.2],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',fill:true,tension:0.4,pointRadius:3},
@@ -545,7 +548,8 @@ function buildTemas(temas){
   });
 }
 function buildEnc(){
-  var cv=document.getElementById('cv-enc');if(!cv||charts['enc'])return;
+  var cv=document.getElementById('cv-enc');if(!cv)return;
+  destroyChart('enc');
   charts['enc']=new Chart(cv,{type:'line',data:{labels:['Nov 25','Dic 25','Ene 26','Feb 26','Mar ini','Mar fin','Abr est'],
     datasets:[
       {label:'IEP',data:[null,null,14.7,14.6,11.7,8.7,8.2],borderColor:'#3b82f6',tension:0.4,pointRadius:3,fill:false},
@@ -605,14 +609,12 @@ async function refreshAll(){
       };
     });
 
-    renderNews();renderMetrics(data);
-    var as=document.querySelector('.sec.on');
-    if(as){
-      var sid=as.id.replace('sec-','');
-      if(sid==='sentimiento')renderSent(data);
-      if(sid==='temas')renderTemas(data);
-      if(sid==='analisis')renderAnalisis(data);
-    }
+    /* Renderizar TODOS los paneles siempre, no solo el activo */
+    renderNews();
+    renderMetrics(data);
+    renderSent(data);
+    renderTemas(data);
+    renderAnalisis(data);
 
     var t=new Date().toLocaleTimeString('es-PE');
     sv('last-upd','Actualizado: '+t);
@@ -658,6 +660,7 @@ document.getElementById('auto-int').addEventListener('change',setAuto);
 
 /* INIT */
 buildEnc();
+buildEvo();
 refreshAll();
 setTimeout(setAuto,1500);
 </script>
