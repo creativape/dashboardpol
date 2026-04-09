@@ -1,191 +1,205 @@
 /**
  * /api/dashboard.js — Vercel Serverless Function
  *
- * FUENTES (funcionan desde Vercel sin bloqueos):
- * ─────────────────────────────────────────────────
- * 1. GNews.io       → noticias en español sobre Perú  (GNEWS_TOKEN)
- * 2. NewsData.io    → noticias peruanas adicionales   (NEWSDATA_KEY)
- * 3. Noticias base  → datos reales hardcodeados como respaldo final
- * 4. Claude IA      → análisis completo de todo
+ * Todas las fuentes buscan EXCLUSIVAMENTE noticias sobre López Aliaga.
+ * El análisis de Claude clasifica sentimiento respecto a él.
  *
- * VARIABLES DE ENTORNO (Vercel → Settings → Environment Variables):
- *   ANTHROPIC_API_KEY  →  sk-ant-...   (OBLIGATORIO)
- *   GNEWS_TOKEN        →  token gnews  (recomendado — gnews.io/register)
- *   NEWSDATA_KEY       →  pub_...      (opcional   — newsdata.io/register)
+ * VARIABLES DE ENTORNO:
+ *   ANTHROPIC_API_KEY  → console.anthropic.com
+ *   NEWSDATA_KEY       → newsdata.io/register (gratis, 200 req/día)
  */
 
 export default async function handler(req, res) {
-
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Cache-Control', 'no-store');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-  const GNEWS_TOKEN   = process.env.GNEWS_TOKEN;
   const NEWSDATA_KEY  = process.env.NEWSDATA_KEY;
 
   if (!ANTHROPIC_KEY) {
-    return res.status(200).json(emptyResponse(
-      'ANTHROPIC_API_KEY no configurada. Ve a Vercel → Settings → Environment Variables.'
-    ));
+    return res.status(200).json(vacio('Falta ANTHROPIC_API_KEY en Vercel → Settings → Environment Variables.'));
   }
 
   try {
-    // Lanzar fuentes externas en paralelo
-    const [gnewsItems, newsdataItems] = await Promise.all([
-      GNEWS_TOKEN  ? fetchGNews(GNEWS_TOKEN)      : [],
-      NEWSDATA_KEY ? fetchNewsData(NEWSDATA_KEY)   : [],
+    /* Buscar noticias sobre López Aliaga en paralelo */
+    const [rssItems, newsdataItems] = await Promise.all([
+      fetchRSS(),
+      NEWSDATA_KEY ? fetchNewsData(NEWSDATA_KEY) : [],
     ]);
 
-    let rawItems = dedup([...gnewsItems, ...newsdataItems]);
+    const items = dedup([...rssItems, ...newsdataItems]);
 
-    // Si ninguna API externa devolvió resultados, usar noticias base
-    // para que el dashboard siempre muestre contenido real
-    if (rawItems.length === 0) {
-      console.log('[dashboard] Sin resultados externos, usando noticias base');
-      rawItems = getBaselineNews();
+    if (items.length === 0) {
+      return res.status(200).json(vacio(
+        'No se encontraron noticias sobre López Aliaga en este momento. Los feeds RSS pueden estar lentos — intenta en unos minutos.'
+      ));
     }
 
-    const analysis = await analyzeWithClaude(rawItems, ANTHROPIC_KEY);
-    return res.status(200).json(normalize(analysis, rawItems));
+    const resultado = await analizarClaude(items, ANTHROPIC_KEY);
+    return res.status(200).json(normalizar(resultado, items));
 
   } catch (err) {
-    console.error('[dashboard] Error general:', err.message);
-    // Último recurso: analizar noticias base aunque haya fallado todo
-    try {
-      const baseline = getBaselineNews();
-      const analysis = await analyzeWithClaude(baseline, ANTHROPIC_KEY);
-      return res.status(200).json(normalize(analysis, baseline));
-    } catch (e2) {
-      return res.status(200).json(emptyResponse('Error: ' + err.message));
-    }
+    console.error('[dashboard]', err.message);
+    return res.status(200).json(vacio('Error: ' + err.message));
   }
 }
 
-/* ══════════════════════════════════════════════════════════════
-   FUENTE 1 — GNews.io
-   Free tier: 100 req/día · gnews.io/register
-══════════════════════════════════════════════════════════════ */
-async function fetchGNews(token) {
-  const queries = ['López Aliaga', 'elecciones Peru 2026'];
-  const items   = [];
+/* ══════════════════════════════════════════════════════
+   FUENTE 1 — RSS de medios peruanos filtrado para López Aliaga
+   Convertido a JSON via rss2json.com (gratis, 10k req/día, sin key)
+══════════════════════════════════════════════════════ */
+async function fetchRSS() {
+  const BASE = 'https://api.rss2json.com/v1/api.json?rss_url=';
 
-  for (const q of queries) {
+  /* Feeds de medios peruanos con cobertura política */
+  const feeds = [
+    { url: 'https://larepublica.pe/feeds/rss',           nombre: 'La República' },
+    { url: 'https://rpp.pe/rss/politica.xml',            nombre: 'RPP Noticias' },
+    { url: 'https://elcomercio.pe/rss/politica.xml',     nombre: 'El Comercio' },
+    { url: 'https://www.infobae.com/feeds/rss/peru/',    nombre: 'Infobae Perú' },
+    { url: 'https://gestion.pe/rss/politica',            nombre: 'Gestión' },
+    { url: 'https://peru21.pe/feed/',                    nombre: 'Peru21' },
+  ];
+
+  /* Solo nos interesan noticias que hablen de él */
+  const KEYS = ['lópez aliaga','lopez aliaga','aliaga','renovación popular','renovacion popular'];
+
+  const todos = [];
+  await Promise.all(feeds.map(async (feed) => {
     try {
-      const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=es&country=pe&max=10&token=${token}`;
-      const r   = await fetch(url, { signal: AbortSignal.timeout(10000) });
-
-      if (r.status === 403) { console.warn('[GNews] 403 — límite diario o token inválido'); continue; }
-      if (!r.ok)            { console.warn('[GNews] HTTP', r.status); continue; }
-
+      const url = BASE + encodeURIComponent(feed.url) + '&count=25';
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) return;
       const data = await r.json();
-      if (data.errors) { console.warn('[GNews]', data.errors); continue; }
+      if (data.status !== 'ok' || !Array.isArray(data.items)) return;
 
-      for (const a of (data.articles || [])) {
-        if (!a.title) continue;
-        items.push({
-          titulo:  a.title,
-          fuente:  a.source?.name || 'GNews',
-          resumen: a.description || a.title,
-          fecha:   a.publishedAt || new Date().toISOString(),
-          origen:  'gnews',
+      for (const item of data.items) {
+        if (!item.title) continue;
+        /* Filtro estricto: el título o descripción deben mencionar a López Aliaga */
+        const txt = (item.title + ' ' + (item.description || '')).toLowerCase();
+        if (!KEYS.some(k => txt.includes(k))) continue;
+
+        const desc = (item.description || item.content || '')
+          .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 320);
+
+        todos.push({
+          titulo:  item.title,
+          fuente:  feed.nombre,
+          resumen: desc || item.title,
+          fecha:   item.pubDate || new Date().toISOString(),
         });
       }
-    } catch (e) { console.warn('[GNews]', e.message); }
-  }
+    } catch (e) {
+      console.warn('[RSS]', feed.nombre, e.message);
+    }
+  }));
 
-  return dedup(items).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 20);
+  return dedup(todos).sort((a,b) => new Date(b.fecha)-new Date(a.fecha)).slice(0, 18);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   FUENTE 2 — NewsData.io
-   Free tier: 200 req/día · newsdata.io/register
-══════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   FUENTE 2 — NewsData.io buscando solo a López Aliaga
+══════════════════════════════════════════════════════ */
 async function fetchNewsData(key) {
-  const queries = ['López Aliaga Peru', 'elecciones 2026 Peru candidatos'];
-  const items   = [];
+  /* Queries específicas para López Aliaga */
+  const queries = [
+    '"López Aliaga"',
+    'Lopez Aliaga Peru elecciones',
+  ];
+  const todos = [];
 
   for (const q of queries) {
     try {
-      const url = `https://newsdata.io/api/1/latest?apikey=${encodeURIComponent(key)}&q=${encodeURIComponent(q)}&language=es&country=pe&size=8`;
-      const r   = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const url = 'https://newsdata.io/api/1/latest'
+        + '?apikey=' + encodeURIComponent(key)
+        + '&q='      + encodeURIComponent(q)
+        + '&language=es&country=pe&size=8';
 
-      if (!r.ok) { console.warn('[NewsData] HTTP', r.status); continue; }
+      const r = await fetch(url, { signal: AbortSignal.timeout(9000) });
+      if (!r.ok) continue;
       const data = await r.json();
-      if (data.status !== 'success') { console.warn('[NewsData]', data.message); continue; }
+      if (data.status !== 'success') continue;
 
       for (const a of (data.results || [])) {
         if (!a.title) continue;
-        items.push({
+        /* Doble verificación: que realmente hable de él */
+        const txt = (a.title + ' ' + (a.description||'')).toLowerCase();
+        if (!txt.includes('aliaga')) continue;
+
+        todos.push({
           titulo:  a.title,
-          fuente:  a.source_name || a.source_id || 'NewsData',
-          resumen: a.description || (a.content || '').slice(0, 300) || a.title,
+          fuente:  a.source_name || 'Medio peruano',
+          resumen: a.description || (a.content||'').slice(0,320) || a.title,
           fecha:   a.pubDate || new Date().toISOString(),
-          origen:  'newsdata',
         });
       }
-    } catch (e) { console.warn('[NewsData]', e.message); }
+    } catch (e) {
+      console.warn('[NewsData]', e.message);
+    }
   }
 
-  return dedup(items).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 15);
+  return dedup(todos).sort((a,b) => new Date(b.fecha)-new Date(a.fecha)).slice(0, 12);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   NOTICIAS BASE — respaldo siempre disponible
-   Noticias reales de la campaña para cuando las APIs no responden
-══════════════════════════════════════════════════════════════ */
-function getBaselineNews() {
-  return [
-    { titulo: 'López Aliaga cae a 8.7% en encuesta IEP — mínimo histórico de campaña',           fuente: 'Infobae Perú',       resumen: 'El candidato de Renovación Popular pasó de liderar con 14.7% en enero a 8.7% al cierre de marzo. Keiko Fujimori tomó el liderazgo con 10%.', fecha: '2026-04-03T10:00:00Z', origen: 'base' },
-    { titulo: 'Violentas protestas en Juliaca obligan a López Aliaga a suspender mitin',           fuente: 'La República',       resumen: 'Ciudadanos de Puno rechazaron su presencia por sus posturas durante las protestas de 2022-2023. Salió protegido por la policía.', fecha: '2026-04-02T14:00:00Z', origen: 'base' },
-    { titulo: 'JNE rechaza categóricamente amenazas al jefe de la ONPE',                          fuente: 'La República',       resumen: 'El JNE condenó las declaraciones de López Aliaga sobre la ONPE. La Corte Suprema también se pronunció rechazando las amenazas.', fecha: '2026-04-02T09:00:00Z', origen: 'base' },
-    { titulo: 'Reciben con huevos en Andahuaylas y queman su propaganda de campaña',               fuente: 'La República',       resumen: 'Manifestantes en Apurímac incendiaron material de campaña. El candidato respondió con sarcasmo exacerbando los ánimos.', fecha: '2026-04-01T16:00:00Z', origen: 'base' },
-    { titulo: 'López-Chau en debate: "Terruqueaste al sur mientras asesinaban a 50 peruanos"',    fuente: 'La República',       resumen: 'El candidato de Ahora Nación criticó duramente a López Aliaga por insultar a ciudadanos apurimeños. En el sur, López-Chau lo supera con 10% vs 4.3%.', fecha: '2026-04-03T18:00:00Z', origen: 'base' },
-    { titulo: 'Se refugia en iglesia de Abancay mientras ciudadanos protestan afuera',             fuente: 'RPP Noticias',       resumen: 'Tercer incidente en el sur en una semana. Salió protegido por escudos policiales mientras le lanzaban objetos.', fecha: '2026-04-03T11:00:00Z', origen: 'base' },
-    { titulo: 'Debate JNE: Pérez Tello lo llama "mentiroso" ante cámaras nacionales',             fuente: 'RPP Noticias',       resumen: 'Múltiples candidatos cuestionaron sus propuestas y gestión en Lima durante el debate oficial del JNE.', fecha: '2026-04-01T20:00:00Z', origen: 'base' },
-    { titulo: 'Base conservadora de Lima lo defiende activamente en redes sociales',               fuente: 'Dynamic Company',    resumen: 'López Aliaga ocupa el 2do lugar en menciones de apoyo en redes. Índice de sentimiento positivo en Facebook: +7.3%.', fecha: '2026-03-31T12:00:00Z', origen: 'base' },
-    { titulo: 'Encuesta Ipsos: Fujimori 11%, López Aliaga 9%, Álvarez sigue subiendo',            fuente: 'Perú21',             resumen: 'Caída constante desde 12% en febrero. Un tercio del electorado aún no decide su voto.', fecha: '2026-03-29T08:00:00Z', origen: 'base' },
-    { titulo: 'Liderazgo en Lima Metropolitana se mantiene: 16% según Ipsos',                     fuente: 'Infobae Perú',       resumen: 'En Lima Metropolitana mantiene el primer lugar. Base en electores de 50+ años fiel al 59%.', fecha: '2026-03-29T10:00:00Z', origen: 'base' },
-    { titulo: 'Propuestas controversiales (cripto, DNI al feto) generan debate nacional',         fuente: 'Caretas',            resumen: 'Politólogos califican estas iniciativas de inejecutables. Ninguna pasa el 12% de respaldo en encuestas.', fecha: '2026-03-28T14:00:00Z', origen: 'base' },
-    { titulo: 'Concentra 56.7% de su voto en Lima — debilidad crítica en zonas rurales',          fuente: 'IEP / La República', resumen: 'Solo el 8% de su voto proviene del Perú rural. Sánchez y López-Chau lo superan ampliamente en el interior del país.', fecha: '2026-04-03T09:00:00Z', origen: 'base' },
-  ].map((item, i) => ({ ...item, nuevo: i < 3 }));
-}
-
-/* ══════════════════════════════════════════════════════════════
-   CLAUDE — análisis completo
-══════════════════════════════════════════════════════════════ */
-async function analyzeWithClaude(items, apiKey) {
+/* ══════════════════════════════════════════════════════
+   CLAUDE — clasifica sentimiento RESPECTO A LÓPEZ ALIAGA
+   y genera temas, análisis y diagnóstico sobre él
+══════════════════════════════════════════════════════ */
+async function analizarClaude(items, apiKey) {
   const texto = items.slice(0, 20).map((it, i) =>
-    `[${i + 1}] FUENTE: ${it.fuente}\nTÍTULO: ${it.titulo}\nRESUMEN: ${(it.resumen || '').slice(0, 250)}`
+    `[${i+1}] FUENTE: ${it.fuente}\nTÍTULO: ${it.titulo}\nRESUMEN: ${(it.resumen||'').slice(0,280)}`
   ).join('\n\n');
 
-  const prompt = `Eres un analista político experto en las elecciones peruanas 2026.
-Analiza estas noticias sobre Rafael López Aliaga y devuelve ÚNICAMENTE un JSON válido sin texto adicional ni backticks.
+  const prompt = `Eres un analista político especializado en la campaña de Rafael López Aliaga en las elecciones peruanas 2026.
+
+Analiza estas ${items.length} noticias reales de medios peruanos. Todas hablan sobre López Aliaga.
+
+IMPORTANTE — criterio de sentimiento:
+- "pos" = la noticia es favorable para López Aliaga (lo defiende, muestra apoyo, logros, encuestas subiendo, base electoral fuerte)
+- "neg" = la noticia es desfavorable para él (protestas en su contra, caída en encuestas, críticas, escándalos, rechazo)
+- "neu" = noticia informativa sin tono claro (debate, agenda, declaraciones sin juicio)
 
 NOTICIAS:
 ${texto}
 
-JSON requerido:
+Devuelve ÚNICAMENTE este JSON válido, sin texto adicional, sin backticks:
 {
   "crisis": true o false,
   "riesgo": "alto"|"medio"|"bajo",
-  "tema_principal": "frase corta máx 70 caracteres",
-  "resumen_ejecutivo": "2-3 oraciones de diagnóstico de la situación mediática",
+  "tema_principal": "frase corta máx 70 chars sobre la situación actual de López Aliaga",
+  "resumen_ejecutivo": "2-3 oraciones: diagnóstico de cómo está López Aliaga en los medios hoy",
   "noticias": [
-    { "t": "título", "f": "fuente", "r": "resumen 1-2 oraciones", "s": "neg"|"pos"|"neu", "tags": ["tag1","tag2"] }
+    {
+      "t": "título de la noticia",
+      "f": "nombre del medio",
+      "r": "resumen de 1-2 oraciones sobre qué dice la noticia de López Aliaga",
+      "s": "neg"|"pos"|"neu",
+      "tags": ["Encuestas", "Protestas"] (máx 2 tags descriptivos del tema)
+    }
   ],
   "temas": [
-    { "nombre": "Tema", "pct": número 0-100, "tono": "neg"|"pos"|"neu" }
+    {
+      "nombre": "nombre del tema (ej: Caída en encuestas, Protestas en el sur, Lima base fuerte)",
+      "pct": número del 0 al 100 que indica cuánto peso tiene ese tema en la cobertura,
+      "tono": "neg"|"pos"|"neu"
+    }
   ],
   "analisis": {
-    "situacion_encuestas": "texto",
-    "imagen_regional": "texto",
-    "fortalezas": "texto",
-    "segunda_vuelta": "texto"
+    "situacion_encuestas": "cómo están sus números en las encuestas según las noticias",
+    "imagen_regional": "cómo lo tratan en Lima vs regiones según las noticias",
+    "fortalezas": "qué lo favorece según la cobertura actual",
+    "segunda_vuelta": "perspectiva de segunda vuelta según las noticias"
   }
 }
-REGLAS: crisis=true si >65% negativos. temas: 4-8 elementos. Incluye TODAS las noticias. Solo el JSON.`;
+
+REGLAS:
+- crisis=true si más del 65% de las noticias son negativas para él
+- temas: entre 4 y 8 temas extraídos de los textos reales
+- El campo "pct" de temas debe sumar aproximadamente 100 entre todos
+- Incluye TODAS las noticias en el array "noticias"
+- Solo responde el JSON, nada más`;
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -196,10 +210,10 @@ REGLAS: crisis=true si >65% negativos. temas: 4-8 elementos. Incluye TODAS las n
     },
     body: JSON.stringify({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 2500,
       messages:   [{ role: 'user', content: prompt }],
     }),
-    signal: AbortSignal.timeout(40000),
+    signal: AbortSignal.timeout(45000),
   });
 
   if (!r.ok) {
@@ -208,64 +222,57 @@ REGLAS: crisis=true si >65% negativos. temas: 4-8 elementos. Incluye TODAS las n
   }
 
   const data  = await r.json();
-  const raw   = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-  const clean = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  const raw   = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+  const clean = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
 
   try {
     return JSON.parse(clean);
-  } catch (e) {
-    console.error('[Claude parse]', clean.slice(0, 300));
+  } catch(e) {
+    console.error('[Claude parse]', clean.slice(0,300));
     return fallback(items);
   }
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════
    HELPERS
-══════════════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════ */
 function dedup(items) {
   const seen = new Set();
   return items.filter(it => {
-    const key = it.titulo.toLowerCase().slice(0, 55);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+    const k = it.titulo.toLowerCase().slice(0, 60);
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
   });
 }
 
-function emptyResponse(msg) {
+function vacio(msg) {
   return {
     error: msg, crisis: false, riesgo: 'bajo',
     tema_principal: 'Sin datos', resumen_ejecutivo: msg,
     noticias: [], temas: [],
-    analisis: { situacion_encuestas: '', imagen_regional: '', fortalezas: '', segunda_vuelta: '' },
+    analisis: { situacion_encuestas:'', imagen_regional:'', fortalezas:'', segunda_vuelta:'' },
   };
 }
 
 function fallback(items) {
   return {
     crisis: false, riesgo: 'medio',
-    tema_principal: 'Noticias de medios peruanos',
-    resumen_ejecutivo: 'Datos de medios peruanos disponibles. Análisis de IA temporalmente no disponible.',
-    noticias: items.map((it, i) => ({
-      t: it.titulo, f: it.fuente, r: it.resumen || it.titulo,
-      s: 'neu', tags: [], nuevo: i < 3,
-    })),
+    tema_principal: 'Noticias sobre López Aliaga',
+    resumen_ejecutivo: 'Datos obtenidos de medios peruanos. Análisis de IA no disponible temporalmente.',
+    noticias: items.map((it,i) => ({ t:it.titulo, f:it.fuente, r:it.resumen||it.titulo, s:'neu', tags:[], nuevo:i<3 })),
     temas: [],
-    analisis: { situacion_encuestas: '', imagen_regional: '', fortalezas: '', segunda_vuelta: '' },
+    analisis: { situacion_encuestas:'', imagen_regional:'', fortalezas:'', segunda_vuelta:'' },
   };
 }
 
-function normalize(data, rawItems) {
-  if (!Array.isArray(data.noticias) || data.noticias.length === 0) {
-    data.noticias = rawItems.slice(0, 15).map((it, i) => ({
-      t: it.titulo, f: it.fuente, r: it.resumen || it.titulo,
-      s: 'neu', tags: [], nuevo: i < 3,
-    }));
+function normalizar(data, items) {
+  if (!Array.isArray(data.noticias) || !data.noticias.length) {
+    data.noticias = items.slice(0,15).map((it,i) => ({ t:it.titulo, f:it.fuente, r:it.resumen||it.titulo, s:'neu', tags:[], nuevo:i<3 }));
   }
-  if (!Array.isArray(data.temas))  data.temas = [];
-  if (!data.analisis) data.analisis = { situacion_encuestas: '', imagen_regional: '', fortalezas: '', segunda_vuelta: '' };
+  if (!Array.isArray(data.temas))  data.temas  = [];
+  if (!data.analisis) data.analisis = { situacion_encuestas:'', imagen_regional:'', fortalezas:'', segunda_vuelta:'' };
   if (typeof data.crisis !== 'boolean') data.crisis = false;
-  if (!['alto', 'medio', 'bajo'].includes(data.riesgo)) data.riesgo = 'bajo';
+  if (!['alto','medio','bajo'].includes(data.riesgo)) data.riesgo = 'bajo';
   data.tema_principal    = data.tema_principal    || '';
   data.resumen_ejecutivo = data.resumen_ejecutivo || '';
   return data;
